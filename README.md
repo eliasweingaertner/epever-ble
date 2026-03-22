@@ -132,11 +132,11 @@ The Modbus register map is the standard EPEver Tracer map:
 
 ## Background
 
-This project was born out of frustration: the EPEver Tracer CPN 7810 has a perfectly good built-in Bluetooth interface, but the only way to use it is through EPEver's proprietary "Solar Station" Android app. There is no open-source library, no protocol documentation, and no way to log data to your own system.
+This project was born out of frustration: the EPEver Tracer CPN 7810 has a perfectly good built-in Bluetooth interface, but the only way to use it is through EPEver's proprietary "Solar Guardian" Android app. There is no open-source library, no protocol documentation, and no way to log data to your own system.
 
 The protocol was reverse-engineered in a single session by:
 
-1. **Capturing a Bluetooth HCI snoop log** from Android while using the Solar Station app. Android has a developer option to log all Bluetooth traffic to a file.
+1. **Capturing a Bluetooth HCI snoop log** from Android while using the Solar Guardian app. Android has a developer option to log all Bluetooth traffic to a file.
 2. **Parsing the btsnoop log** to extract ATT/GATT packets, identifying two separate BLE connections and the data exchange patterns.
 3. **Discovering the GATT services** using `gatttool --primary` and `--characteristics` (since `bleak` couldn't maintain a connection long enough for service discovery).
 4. **Identifying the Modbus register map** from the [epevermodbus](https://github.com/rosswarren/epevermodbus) Python library, which documents the full register map for EPEver Tracer controllers over RS-485. The registers are identical regardless of transport.
