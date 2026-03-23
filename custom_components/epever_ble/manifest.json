@@ -1,0 +1,10 @@
+{
+  "domain": "epever_ble",
+  "name": "EPEver BLE Solar Charge Controller",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://github.com/elias/epever-ble",
+  "iot_class": "local_polling",
+  "version": "1.0.0",
+  "requirements": []
+}
