@@ -56,18 +56,8 @@ Tested on the **EPEver Tracer CPN 7810** with its built-in HN-series BLE module.
 
 - Linux with BlueZ 5.x
 - Python 3.10+
-- No Python dependencies beyond the standard library for the CLI tool
-- `python3-dbus` and `python3-gi` are only needed for the `--scan` feature (optional)
-
-### Optional: install scanning dependencies
-
-The `--scan` feature uses the BlueZ D-Bus API. On Debian/Ubuntu:
-
-```bash
-sudo apt install python3-dbus python3-gi
-```
-
-You can also discover devices with `bluetoothctl` instead and skip these packages entirely.
+- No Python dependencies beyond the standard library
+- `bluetoothctl` (included with BlueZ) is used for device scanning
 
 ## Pairing
 

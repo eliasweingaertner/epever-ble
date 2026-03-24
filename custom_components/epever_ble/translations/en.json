@@ -3,13 +3,24 @@
     "step": {
       "user": {
         "title": "EPEver BLE Charge Controller",
-        "description": "Connect to an EPEver Tracer charge controller via Bluetooth Low Energy.",
+        "description": "Select your EPEver charge controller from the discovered Bluetooth devices.",
+        "data": {
+          "mac": "Device",
+          "scan_interval": "Update interval (seconds)"
+        },
+        "data_description": {
+          "scan_interval": "How often to poll the controller. Minimum 10 seconds."
+        }
+      },
+      "manual": {
+        "title": "EPEver BLE Charge Controller",
+        "description": "Enter the Bluetooth MAC address of your charge controller manually.",
         "data": {
           "mac": "MAC Address",
           "scan_interval": "Update interval (seconds)"
         },
         "data_description": {
-          "mac": "Bluetooth MAC address of the charge controller (e.g. AA:BB:CC:DD:EE:FF). Find it with `bluetoothctl scan on`.",
+          "mac": "Bluetooth MAC address (e.g. AA:BB:CC:DD:EE:FF). Pair the device first with `bluetoothctl`.",
           "scan_interval": "How often to poll the controller. Minimum 10 seconds."
         }
       }

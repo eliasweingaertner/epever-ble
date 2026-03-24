@@ -1,5 +1,3 @@
-# No dependencies required for connecting and reading data.
-# The core script uses only Python standard library + Linux Bluetooth sockets.
-#
-# The --scan feature optionally uses BlueZ D-Bus:
-#   sudo apt install python3-dbus python3-gi
+# No dependencies required.
+# Uses only Python standard library + Linux Bluetooth sockets.
+# Device scanning uses bluetoothctl (included with BlueZ).

@@ -80,58 +80,41 @@ def display_data(data: dict):
 
 
 def scan_devices(timeout: int = 10):
-    """Scan for BLE devices using BlueZ D-Bus API."""
-    import dbus
-    import dbus.mainloop.glib
-
-    BLUEZ_SERVICE = "org.bluez"
-    ADAPTER_IFACE = "org.bluez.Adapter1"
-    DEVICE_IFACE = "org.bluez.Device1"
-    OBJECT_MANAGER_IFACE = "org.freedesktop.DBus.ObjectManager"
+    """Scan for BLE devices using bluetoothctl."""
+    import subprocess
 
     print(f"Scanning for BLE devices ({timeout}s)...\n")
 
-    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-    bus = dbus.SystemBus()
-
-    obj_mgr = dbus.Interface(
-        bus.get_object(BLUEZ_SERVICE, "/"), OBJECT_MANAGER_IFACE
-    )
-    adapter_path = None
-    for path, ifaces in obj_mgr.GetManagedObjects().items():
-        if ADAPTER_IFACE in ifaces:
-            adapter_path = path
-            break
-
-    if not adapter_path:
-        print("No Bluetooth adapter found.")
+    # Start a BLE scan, wait, then stop
+    try:
+        subprocess.run(
+            ["bluetoothctl", "scan", "on"],
+            timeout=timeout,
+            capture_output=True,
+        )
+    except subprocess.TimeoutExpired:
+        pass  # Expected — scan runs until timeout
+    except FileNotFoundError:
+        print("bluetoothctl not found. Install BlueZ.")
         return
 
-    adapter = dbus.Interface(
-        bus.get_object(BLUEZ_SERVICE, adapter_path), ADAPTER_IFACE
+    subprocess.run(["bluetoothctl", "scan", "off"], capture_output=True, timeout=3)
+
+    # List discovered devices
+    result = subprocess.run(
+        ["bluetoothctl", "devices"],
+        capture_output=True,
+        text=True,
+        timeout=5,
     )
-    adapter.SetDiscoveryFilter({"Transport": dbus.String("le")})
-
-    try:
-        adapter.StartDiscovery()
-    except dbus.exceptions.DBusException:
-        pass
-
-    time.sleep(timeout)
-
-    try:
-        adapter.StopDiscovery()
-    except dbus.exceptions.DBusException:
-        pass
 
     devices = []
-    for path, ifaces in obj_mgr.GetManagedObjects().items():
-        if DEVICE_IFACE in ifaces:
-            props = ifaces[DEVICE_IFACE]
-            addr = str(props.get("Address", ""))
-            name = str(props.get("Name", props.get("Alias", "")))
-            if addr:
-                devices.append((addr, name))
+    for line in result.stdout.splitlines():
+        parts = line.split(maxsplit=2)
+        if len(parts) >= 3 and parts[0] == "Device":
+            devices.append((parts[1], parts[2]))
+        elif len(parts) == 2 and parts[0] == "Device":
+            devices.append((parts[1], parts[1]))
 
     if not devices:
         print("No devices found.")
