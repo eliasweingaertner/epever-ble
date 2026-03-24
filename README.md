@@ -61,7 +61,7 @@ Tested on the **EPEver Tracer CPN 7810** with its built-in HN-series BLE module.
 
 ## Pairing
 
-Before first use, pair your controller via `bluetoothctl`:
+Pairing may not be necessary — on Home Assistant OS, the integration has been tested to work without prior pairing. If the device isn't connecting, try pairing manually via `bluetoothctl`:
 
 ```bash
 bluetoothctl
@@ -110,7 +110,15 @@ A custom integration that exposes all charge controller data as Home Assistant s
    cp -r custom_components/epever_ble /path/to/homeassistant/config/custom_components/
    ```
 
-2. **Grant Bluetooth permissions.** The integration uses raw L2CAP sockets, which require either root or the `CAP_NET_ADMIN` and `CAP_NET_RAW` capabilities on the Python binary:
+2. Restart Home Assistant.
+
+3. Go to **Settings > Devices & Services > Add Integration** and search for **EPEver BLE**.
+
+4. Select your charge controller from the discovered devices, or enter the MAC address manually.
+
+If the integration fails to connect, you may need to:
+
+- **Grant Bluetooth permissions.** The integration uses raw L2CAP sockets, which require either root or the `CAP_NET_ADMIN` and `CAP_NET_RAW` capabilities on the Python binary:
 
    ```bash
    # Option A: set capabilities on the Python binary (recommended)
@@ -119,13 +127,9 @@ A custom integration that exposes all charge controller data as Home Assistant s
    # Option B: if running in a container, add NET_ADMIN and NET_RAW capabilities
    ```
 
-3. **Pair the device** on the host running Home Assistant (see [Pairing](#pairing) above).
+- **Pair the device** on the host running Home Assistant (see [Pairing](#pairing) above).
 
-4. Restart Home Assistant.
-
-5. Go to **Settings > Devices & Services > Add Integration** and search for **EPEver BLE**.
-
-6. Enter the MAC address of your charge controller and configure the poll interval.
+On Home Assistant OS, neither of these steps was needed in testing.
 
 ### Entities
 
@@ -195,7 +199,7 @@ The Modbus register map is the standard EPEver Tracer map:
 - **Linux only** — uses Linux-specific L2CAP Bluetooth sockets and `ctypes` to construct `sockaddr_l2` structures.
 - BLE default MTU is 20 bytes, so responses for large register reads arrive fragmented. The script works around this by reading in small batches (8 registers at a time).
 - ATT handles are hardcoded from the CPN 7810's GATT layout. Other EPEver Tracer models with built-in BLE (HN_ prefix in device name) likely work too since they share the same Modbus register map, but handle assignments could differ. Models using external BLE dongles (eBox-BLE-01) may use different GATT UUIDs (typically FFE0/FFE1).
-- The Home Assistant integration requires Bluetooth capabilities (`CAP_NET_ADMIN`, `CAP_NET_RAW`) on the Python process.
+- The Home Assistant integration uses raw L2CAP sockets, which may require Bluetooth capabilities (`CAP_NET_ADMIN`, `CAP_NET_RAW`) on the Python process depending on your setup. On Home Assistant OS this works out of the box.
 
 ## Background
 
