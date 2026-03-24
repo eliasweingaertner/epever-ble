@@ -114,22 +114,13 @@ A custom integration that exposes all charge controller data as Home Assistant s
 
 ### Installation
 
-1. **Install the `epever_ble` Python package** into the Home Assistant Python environment:
-
-   ```bash
-   # From within the HA venv or container:
-   pip install /path/to/epever-ble
-   # or directly from GitHub:
-   pip install git+https://github.com/elias/epever-ble.git
-   ```
-
-2. Copy the `custom_components/epever_ble` directory into your Home Assistant `config/custom_components/` directory:
+1. Copy the `custom_components/epever_ble` directory into your Home Assistant `config/custom_components/` directory:
 
    ```bash
    cp -r custom_components/epever_ble /path/to/homeassistant/config/custom_components/
    ```
 
-3. **Grant Bluetooth permissions.** The integration uses raw L2CAP sockets, which require either root or the `CAP_NET_ADMIN` and `CAP_NET_RAW` capabilities on the Python binary:
+2. **Grant Bluetooth permissions.** The integration uses raw L2CAP sockets, which require either root or the `CAP_NET_ADMIN` and `CAP_NET_RAW` capabilities on the Python binary:
 
    ```bash
    # Option A: set capabilities on the Python binary (recommended)
@@ -138,13 +129,13 @@ A custom integration that exposes all charge controller data as Home Assistant s
    # Option B: if running in a container, add NET_ADMIN and NET_RAW capabilities
    ```
 
-4. **Pair the device** on the host running Home Assistant (see [Pairing](#pairing) above).
+3. **Pair the device** on the host running Home Assistant (see [Pairing](#pairing) above).
 
-5. Restart Home Assistant.
+4. Restart Home Assistant.
 
-6. Go to **Settings > Devices & Services > Add Integration** and search for **EPEver BLE**.
+5. Go to **Settings > Devices & Services > Add Integration** and search for **EPEver BLE**.
 
-7. Enter the MAC address of your charge controller and configure the poll interval.
+6. Enter the MAC address of your charge controller and configure the poll interval.
 
 ### Entities
 

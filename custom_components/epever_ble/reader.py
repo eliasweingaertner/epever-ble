@@ -1,8 +1,12 @@
 """Register reading and data parsing for EPEver charge controllers."""
 
-import time
+from __future__ import annotations
 
-from .ble import L2capBLE
+import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .ble import L2capBLE
 
 CHARGING_MODES = {0: "Not Charging", 1: "Float", 2: "Boost", 3: "Equalization"}
 

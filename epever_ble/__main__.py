@@ -12,8 +12,7 @@ import logging
 import sys
 import time
 
-from .ble import verify_modbus_crc
-from .reader import L2capBLE, read_all_data
+from . import L2capBLE, read_all_data, verify_modbus_crc
 
 
 def display_data(data: dict):
