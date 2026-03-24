@@ -7,7 +7,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow
 from homeassistant.const import CONF_MAC, CONF_SCAN_INTERVAL
 
-from .const import CONF_ADDR_TYPE, DEFAULT_ADDR_TYPE, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
 
 MAC_REGEX = re.compile(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 
@@ -26,7 +26,6 @@ class EPEverBLEConfigFlow(ConfigFlow, domain=DOMAIN):
             if not MAC_REGEX.match(mac):
                 errors["mac"] = "invalid_mac"
             else:
-                # Prevent duplicate entries for the same device
                 await self.async_set_unique_id(mac)
                 self._abort_if_unique_id_configured()
 
@@ -34,7 +33,6 @@ class EPEverBLEConfigFlow(ConfigFlow, domain=DOMAIN):
                     title=f"EPEver {mac[-8:]}",
                     data={
                         CONF_MAC: mac,
-                        CONF_ADDR_TYPE: user_input.get(CONF_ADDR_TYPE, DEFAULT_ADDR_TYPE),
                         CONF_SCAN_INTERVAL: user_input.get(
                             CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
                         ),
@@ -46,9 +44,6 @@ class EPEverBLEConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_MAC): str,
-                    vol.Optional(CONF_ADDR_TYPE, default=DEFAULT_ADDR_TYPE): vol.In(
-                        ["public", "random"]
-                    ),
                     vol.Optional(
                         CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
                     ): vol.All(int, vol.Range(min=10)),

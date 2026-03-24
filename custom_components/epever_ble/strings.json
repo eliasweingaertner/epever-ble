@@ -6,12 +6,10 @@
         "description": "Connect to an EPEver Tracer charge controller via Bluetooth Low Energy.",
         "data": {
           "mac": "MAC Address",
-          "addr_type": "BLE Address Type",
           "scan_interval": "Update interval (seconds)"
         },
         "data_description": {
           "mac": "Bluetooth MAC address of the charge controller (e.g. AA:BB:CC:DD:EE:FF). Find it with `bluetoothctl scan on`.",
-          "addr_type": "Use 'public' unless your device uses a random address.",
           "scan_interval": "How often to poll the controller. Minimum 10 seconds."
         }
       }

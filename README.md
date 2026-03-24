@@ -86,20 +86,26 @@ bluetoothctl
 ## Standalone CLI
 
 ```bash
+# Install the package
+pip install -e .
+
 # Scan for nearby BLE devices
-python epever_ble.py --scan
+python -m epever_ble --scan
 
 # Read all data once
-python epever_ble.py --addr XX:XX:XX:XX:XX:XX
+python -m epever_ble --addr XX:XX:XX:XX:XX:XX
 
 # Continuous monitoring (default 5s interval)
-python epever_ble.py --addr XX:XX:XX:XX:XX:XX --loop
+python -m epever_ble --addr XX:XX:XX:XX:XX:XX --loop
 
 # Custom poll interval
-python epever_ble.py --addr XX:XX:XX:XX:XX:XX --loop --interval 10
+python -m epever_ble --addr XX:XX:XX:XX:XX:XX --loop --interval 10
 
 # Send a raw Modbus RTU frame (hex) and print response
-python epever_ble.py --addr XX:XX:XX:XX:XX:XX --raw 0104310000013f36
+python -m epever_ble --addr XX:XX:XX:XX:XX:XX --raw 0104310000013f36
+
+# Enable debug logging
+python -m epever_ble --addr XX:XX:XX:XX:XX:XX -v
 ```
 
 ## Home Assistant Integration
@@ -108,13 +114,22 @@ A custom integration that exposes all charge controller data as Home Assistant s
 
 ### Installation
 
-1. Copy the `custom_components/epever_ble` directory into your Home Assistant `config/custom_components/` directory:
+1. **Install the `epever_ble` Python package** into the Home Assistant Python environment:
+
+   ```bash
+   # From within the HA venv or container:
+   pip install /path/to/epever-ble
+   # or directly from GitHub:
+   pip install git+https://github.com/elias/epever-ble.git
+   ```
+
+2. Copy the `custom_components/epever_ble` directory into your Home Assistant `config/custom_components/` directory:
 
    ```bash
    cp -r custom_components/epever_ble /path/to/homeassistant/config/custom_components/
    ```
 
-2. **Grant Bluetooth permissions.** The integration uses raw L2CAP sockets, which require either root or the `CAP_NET_ADMIN` and `CAP_NET_RAW` capabilities on the Python binary:
+3. **Grant Bluetooth permissions.** The integration uses raw L2CAP sockets, which require either root or the `CAP_NET_ADMIN` and `CAP_NET_RAW` capabilities on the Python binary:
 
    ```bash
    # Option A: set capabilities on the Python binary (recommended)
@@ -123,13 +138,13 @@ A custom integration that exposes all charge controller data as Home Assistant s
    # Option B: if running in a container, add NET_ADMIN and NET_RAW capabilities
    ```
 
-3. **Pair the device** on the host running Home Assistant (see [Pairing](#pairing) above).
+4. **Pair the device** on the host running Home Assistant (see [Pairing](#pairing) above).
 
-4. Restart Home Assistant.
+5. Restart Home Assistant.
 
-5. Go to **Settings > Devices & Services > Add Integration** and search for **EPEver BLE**.
+6. Go to **Settings > Devices & Services > Add Integration** and search for **EPEver BLE**.
 
-6. Enter the MAC address of your charge controller and configure the poll interval.
+7. Enter the MAC address of your charge controller and configure the poll interval.
 
 ### Entities
 

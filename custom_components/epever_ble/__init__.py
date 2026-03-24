@@ -10,7 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_MAC, CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_ADDR_TYPE, DEFAULT_ADDR_TYPE, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
 from .coordinator import EPEverBLECoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,7 +23,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = EPEverBLECoordinator(
         hass,
         address=entry.data[CONF_MAC],
-        addr_type=entry.data.get(CONF_ADDR_TYPE, DEFAULT_ADDR_TYPE),
         scan_interval=entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
     )
 

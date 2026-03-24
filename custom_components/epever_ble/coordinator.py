@@ -6,7 +6,7 @@ from datetime import timedelta
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .ble import L2capBLE, read_all_data
+from epever_ble import L2capBLE, read_all_data
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -18,7 +18,6 @@ class EPEverBLECoordinator(DataUpdateCoordinator):
         self,
         hass: HomeAssistant,
         address: str,
-        addr_type: str,
         scan_interval: int,
     ):
         super().__init__(
@@ -28,16 +27,14 @@ class EPEverBLECoordinator(DataUpdateCoordinator):
             update_interval=timedelta(seconds=scan_interval),
         )
         self._address = address
-        self._addr_type = addr_type
         self._ble: L2capBLE | None = None
 
     def _sync_update(self) -> dict:
         """Blocking BLE read — runs in executor thread."""
-        # Connect if needed
         if self._ble is None or not self._ble.connected:
             if self._ble is not None:
                 self._ble.disconnect()
-            self._ble = L2capBLE(self._address, self._addr_type)
+            self._ble = L2capBLE(self._address)
             if not self._ble.connect():
                 self._ble = None
                 raise UpdateFailed(f"Cannot connect to {self._address}")
@@ -46,7 +43,6 @@ class EPEverBLECoordinator(DataUpdateCoordinator):
         try:
             data = read_all_data(self._ble)
         except Exception as err:
-            # Connection likely dropped — clean up so we reconnect next time
             _LOGGER.debug("Read failed, will reconnect: %s", err)
             self._ble.disconnect()
             self._ble = None
