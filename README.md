@@ -2,7 +2,8 @@
 
 A Python tool and Home Assistant integration to read data from EPEver Tracer charge controllers over Bluetooth Low Energy (BLE) — no RS-485 adapter or additional hardware required.
 
-Tested on the **EPEver Tracer CPN 7810** with its built-in HN-series BLE module.
+Tested on the **EPEver Tracer CPN 7810** with its built-in HN-series BLE module. On the HA forum it was also [reported to work with a Tracer AN2206]( 
+https://community.home-assistant.io/t/monitor-epever-tracer-charge-controllers-via-built-in-ble-dongle/998646).
 
 ## What it reads
 
