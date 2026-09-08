@@ -80,7 +80,13 @@ class HomeAssistantBLE:
         self._write_characteristic = write_characteristic
         await client.start_notify(notify_characteristic, self._notification)
 
-    async def _send_modbus(self, frame: bytes, timeout: float = 3.0) -> bytes | None:
+    async def _send_modbus(
+        self,
+        frame: bytes,
+        expected_byte_count: int,
+        timeout: float = 3.0,
+    ) -> bytes | None:
+        """Send one request and accept only its expected-size response."""
         if not self.connected:
             return None
 
@@ -97,26 +103,40 @@ class HomeAssistantBLE:
         try:
             async with asyncio.timeout(timeout):
                 while True:
-                    response.extend(await self._notifications.get())
-                    if len(response) >= 3:
+                    while len(response) >= 3:
                         expected_length = 5 if response[1] & 0x80 else response[2] + 5
-                        if len(response) >= expected_length:
-                            return bytes(response[:expected_length])
+                        if len(response) < expected_length:
+                            break
+                        candidate = bytes(response[:expected_length])
+                        del response[:expected_length]
+                        if (
+                            candidate[1] & 0x80
+                            or candidate[2] == expected_byte_count
+                        ):
+                            return candidate
+                    response.extend(await self._notifications.get())
         except TimeoutError:
-            return bytes(response) if response else None
+            return None
 
     async def read_input_registers(
         self, start: int, count: int, slave: int = 1
     ) -> list[int] | None:
         """Read Modbus input registers through the BLE bridge."""
-        response = await self._send_modbus(build_modbus_read(slave, 0x04, start, count))
+        response = await self._send_modbus(
+            build_modbus_read(slave, 0x04, start, count),
+            expected_byte_count=count * 2,
+        )
         if not response or len(response) < 5 or not verify_modbus_crc(response):
             return None
         if response[0] != slave or response[1] != 0x04:
             return None
 
         byte_count = response[2]
-        if byte_count % 2 or len(response) != byte_count + 5:
+        if (
+            byte_count != count * 2
+            or byte_count % 2
+            or len(response) != byte_count + 5
+        ):
             return None
 
         payload = response[3 : 3 + byte_count]
