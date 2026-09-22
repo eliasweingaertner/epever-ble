@@ -269,6 +269,12 @@ These resources were used during development:
 - **[Bluetooth GATT specification](https://www.bluetooth.com/specifications/specs/core-specification/)** — For understanding ATT handles, CCCDs, notifications, and service discovery.
 - **Linux L2CAP / ATT sockets** — The standalone CLI opens a raw L2CAP SEQPACKET socket on CID 4 (ATT). The syscall sequence was determined by `strace`-ing `gatttool`.
 
+## Thanks
+
+A big thank you to **Darafei Praliaskouski ([@Komzpa](https://github.com/Komzpa))**, who picked this project up and made it a lot better than I left it. His [pull request #2](https://github.com/eliasweingaertner/epever-ble/pull/2) moved the integration onto Home Assistant's own Bluetooth stack — so it now works through ESPHome Bluetooth proxies and respects Home Assistant's adapter choice — got it ready for HACS, validated it on an XTRA3210N G3, added the battery net current, tightened the Modbus reply checks and brought in the test suite and CI that everything since has been built on.
+
+Contributions like this are what make a weekend hack into something other people can actually use. Thanks, Darafei!
+
 ## Trademarks
 
 EPEVER is a trademark of its respective owner. This project is not affiliated with,
