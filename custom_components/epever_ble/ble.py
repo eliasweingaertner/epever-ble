@@ -46,6 +46,53 @@ def verify_modbus_crc(data: bytes) -> bool:
     return modbus_crc16(data[:-2]) == struct.unpack("<H", data[-2:])[0]
 
 
+def parse_read_registers_response(
+    response: Optional[bytes], slave: int, func: int, start: int, count: int
+) -> Optional[list[int]]:
+    """Validate a Modbus register read response and return its values.
+
+    Shared by the standalone L2CAP transport and the Home Assistant transport,
+    so both accept exactly the same frames. The response must answer the
+    request that was sent: matching slave ID and function code, a valid CRC and
+    exactly ``count`` registers. Bytes after the first complete frame are
+    ignored. Returns None for anything else, including Modbus exceptions.
+    """
+    if not response or len(response) < 5:
+        return None
+
+    if response[1] == func | 0x80:
+        frame = response[:5]
+        if verify_modbus_crc(frame) and frame[0] == slave:
+            _LOGGER.warning(
+                "Modbus exception %d for register 0x%04x", frame[2], start
+            )
+        return None
+
+    frame = response[: response[2] + 5]
+    if len(frame) < response[2] + 5 or not verify_modbus_crc(frame):
+        _LOGGER.debug("Discarding corrupt response for register 0x%04x", start)
+        return None
+    if frame[0] != slave or frame[1] != func:
+        _LOGGER.debug("Discarding foreign response for register 0x%04x", start)
+        return None
+
+    byte_count = frame[2]
+    if byte_count != count * 2:
+        _LOGGER.debug(
+            "Discarding response with %d bytes for register 0x%04x, expected %d",
+            byte_count,
+            start,
+            count * 2,
+        )
+        return None
+
+    payload = frame[3 : 3 + byte_count]
+    return [
+        struct.unpack(">H", payload[offset : offset + 2])[0]
+        for offset in range(0, byte_count, 2)
+    ]
+
+
 # --- ATT protocol opcodes ---
 
 ATT_WRITE_REQUEST = 0x12
@@ -220,25 +267,7 @@ class L2capBLE:
     ) -> Optional[list[int]]:
         frame = build_modbus_read(slave, 0x04, start, count)
         response = self.send_modbus(frame)
-
-        if not response or len(response) < 5:
-            return None
-
-        if response[1] & 0x80:
-            error_code = response[2]
-            _LOGGER.warning(
-                "Modbus error code %d for register 0x%04x", error_code, start
-            )
-            return None
-
-        byte_count = response[2]
-        data = response[3 : 3 + byte_count]
-
-        registers = []
-        for i in range(0, len(data), 2):
-            if i + 1 < len(data):
-                registers.append(struct.unpack(">H", data[i : i + 2])[0])
-        return registers
+        return parse_read_registers_response(response, slave, 0x04, start, count)
 
     def disconnect(self):
         if self._sock:

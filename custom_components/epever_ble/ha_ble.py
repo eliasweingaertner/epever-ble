@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import struct
 
 from bleak import BleakClient
 from bleak.backends.characteristic import BleakGATTCharacteristic
@@ -13,7 +12,7 @@ from bleak_retry_connector import establish_connection
 from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant
 
-from .ble import build_modbus_read, verify_modbus_crc
+from .ble import build_modbus_read, parse_read_registers_response
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -126,24 +125,7 @@ class HomeAssistantBLE:
             build_modbus_read(slave, 0x04, start, count),
             expected_byte_count=count * 2,
         )
-        if not response or len(response) < 5 or not verify_modbus_crc(response):
-            return None
-        if response[0] != slave or response[1] != 0x04:
-            return None
-
-        byte_count = response[2]
-        if (
-            byte_count != count * 2
-            or byte_count % 2
-            or len(response) != byte_count + 5
-        ):
-            return None
-
-        payload = response[3 : 3 + byte_count]
-        return [
-            struct.unpack(">H", payload[offset : offset + 2])[0]
-            for offset in range(0, len(payload), 2)
-        ]
+        return parse_read_registers_response(response, slave, 0x04, start, count)
 
     async def disconnect(self) -> None:
         """Disconnect the current HA Bluetooth path."""

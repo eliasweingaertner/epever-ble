@@ -33,6 +33,7 @@ L2capBLE = _ble_mod.L2capBLE
 build_modbus_read = _ble_mod.build_modbus_read
 modbus_crc16 = _ble_mod.modbus_crc16
 verify_modbus_crc = _ble_mod.verify_modbus_crc
+parse_read_registers_response = _ble_mod.parse_read_registers_response
 read_all_data = _reader_mod.read_all_data
 async_read_all_data = _reader_mod.async_read_all_data
 CHARGING_MODES = _reader_mod.CHARGING_MODES
@@ -42,6 +43,7 @@ __all__ = [
     "build_modbus_read",
     "modbus_crc16",
     "verify_modbus_crc",
+    "parse_read_registers_response",
     "read_all_data",
     "async_read_all_data",
     "CHARGING_MODES",
