@@ -251,6 +251,16 @@ These resources were used during development:
 - **[Bluetooth GATT specification](https://www.bluetooth.com/specifications/specs/core-specification/)** — For understanding ATT handles, CCCDs, notifications, and service discovery.
 - **Linux L2CAP / ATT sockets** — The standalone CLI opens a raw L2CAP SEQPACKET socket on CID 4 (ATT). The syscall sequence was determined by `strace`-ing `gatttool`.
 
+## Trademarks
+
+EPEVER is a trademark of its respective owner. This project is not affiliated with,
+authorised by, or endorsed by EPEVER. The name is used only to identify the hardware this
+software is compatible with.
+
+The integration ships its icon and logo in `custom_components/epever_ble/brand/`, which
+Home Assistant 2026.3 and later picks up automatically. These images are excluded from the
+MIT license; see [LICENSE](LICENSE).
+
 ## License
 
-MIT
+MIT for the source code. The brand images are excluded; see [LICENSE](LICENSE).
