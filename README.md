@@ -222,7 +222,7 @@ The Modbus register map is the standard EPEVER Tracer map:
 ## Known limitations
 
 - The standalone CLI is Linux-only because it uses Linux-specific L2CAP Bluetooth sockets. The Home Assistant integration uses Home Assistant's cross-adapter Bluetooth API instead.
-- BLE default MTU is 20 bytes, so responses for large register reads arrive fragmented. The script works around this by reading in small batches (8 registers at a time).
+- At the default ATT MTU of 23, a notification carries at most 20 bytes, one byte short of an 8-register reply (21 bytes); the controller's BLE bridge then drops the last CRC byte. The standalone CLI therefore negotiates a larger MTU right after connecting (Home Assistant's Bluetooth stack does this by itself). Registers are still read in batches of at most 8.
 - The built-in `HN_` profile was directly validated on an XTRA3210N G3. Other models must be tested individually; sharing the EPEVER Modbus register map does not prove BLE profile compatibility. Models using external BLE dongles (eBox-BLE-01) may use different GATT UUIDs (typically FFE0/FFE1).
 - Battery Net Current is the controller-side value reported by registers `0x331B-0x331C`. External chargers connected directly to a shared battery bus bypass the controller's charging input; this entity must not be treated as a confirmed whole-bus shunt measurement.
 - Device names and controller models are not hardcoded in the integration. The config entry and Home Assistant device registry own the user-visible identity.

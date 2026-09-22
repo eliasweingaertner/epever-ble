@@ -101,3 +101,37 @@ def test_l2cap_transport_validates_responses() -> None:
 
     ble.send_modbus = lambda frame, timeout=3.0: good
     assert ble.read_input_registers(0x3108, 4) is None
+
+
+class FakeSocket:
+    def __init__(self, replies) -> None:
+        self.replies = list(replies)
+        self.sent: list[bytes] = []
+
+    def send(self, data: bytes) -> None:
+        self.sent.append(data)
+
+    def settimeout(self, _value) -> None:
+        pass
+
+    def recv(self, _size: int) -> bytes:
+        if not self.replies:
+            raise epever_ble._ble_mod.socket.timeout()
+        return self.replies.pop(0)
+
+
+def test_exchange_mtu_uses_the_smaller_of_both_sides() -> None:
+    ble = object.__new__(epever_ble.L2capBLE)
+    ble._sock = FakeSocket([b"\x1b\x10\x00\x01", b"\x03\xf7\x00"])
+
+    assert ble.exchange_mtu(512) == 247
+    assert ble._sock.sent == [b"\x02\x00\x02"]
+
+
+def test_exchange_mtu_falls_back_to_default() -> None:
+    ble = object.__new__(epever_ble.L2capBLE)
+    ble._sock = FakeSocket([b"\x01\x02\x00\x00\x06"])  # error response
+    assert ble.exchange_mtu() == 23
+
+    ble._sock = FakeSocket([])  # device stays silent
+    assert ble.exchange_mtu() == 23

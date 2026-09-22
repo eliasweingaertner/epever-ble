@@ -95,6 +95,9 @@ def parse_read_registers_response(
 
 # --- ATT protocol opcodes ---
 
+ATT_ERROR_RESPONSE = 0x01
+ATT_EXCHANGE_MTU_REQUEST = 0x02
+ATT_EXCHANGE_MTU_RESPONSE = 0x03
 ATT_WRITE_REQUEST = 0x12
 ATT_WRITE_RESPONSE = 0x13
 ATT_WRITE_COMMAND = 0x52
@@ -116,6 +119,9 @@ L2CAP_CID_ATT = 4
 SOL_BLUETOOTH = 274
 BT_SECURITY = 4
 BT_SECURITY_LOW = 1
+
+ATT_DEFAULT_MTU = 23
+ATT_CLIENT_MTU = 247
 
 
 def _build_sockaddr_l2(addr_bytes: bytes, cid: int, bdaddr_type: int) -> bytes:
@@ -143,6 +149,7 @@ class L2capBLE:
         self.address = address
         self.addr_type = addr_type
         self.connected = False
+        self.mtu = ATT_DEFAULT_MTU
         self._sock: Optional[socket.socket] = None
         self._libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
 
@@ -209,7 +216,34 @@ class L2capBLE:
         self._sock.setblocking(True)
         self.connected = True
         _LOGGER.info("Connected to %s", self.address)
+        self.mtu = self.exchange_mtu()
         return True
+
+    def exchange_mtu(self, mtu: int = ATT_CLIENT_MTU) -> int:
+        """Negotiate a larger ATT MTU and return the agreed value.
+
+        At the default MTU of 23 a notification carries at most 20 bytes, one
+        byte short of an 8-register Modbus reply (21 bytes). Home Assistant's
+        Bluetooth stack negotiates the MTU by itself; the raw ATT socket has
+        to ask. Falls back to the default if the device refuses or is silent.
+        """
+        try:
+            self._sock.send(struct.pack("<BH", ATT_EXCHANGE_MTU_REQUEST, mtu))
+            self._sock.settimeout(3.0)
+            while True:
+                resp = self._sock.recv(512)
+                if resp and resp[0] == ATT_EXCHANGE_MTU_RESPONSE and len(resp) >= 3:
+                    agreed = min(mtu, struct.unpack("<H", resp[1:3])[0])
+                    _LOGGER.debug("ATT MTU negotiated: %d", agreed)
+                    return agreed
+                if resp and resp[0] == ATT_ERROR_RESPONSE:
+                    break
+        except (socket.timeout, OSError) as err:
+            _LOGGER.debug("ATT MTU exchange failed: %s", err)
+        finally:
+            self._sock.settimeout(None)
+        _LOGGER.debug("ATT MTU stays at %d", ATT_DEFAULT_MTU)
+        return ATT_DEFAULT_MTU
 
     def enable_notifications(self) -> bool:
         """Enable notifications by writing 0x0100 to the CCCD handles."""
