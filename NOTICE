@@ -1,0 +1,8 @@
+# Notice
+
+The MIT license in [LICENSE](LICENSE) applies to the source code in this repository.
+It does not apply to the image files under `custom_components/epever_ble/brand/`.
+
+EPEVER is a trademark of its respective owner. These images are derived from the
+EPEVER site icon and are included for identification of compatible hardware only;
+their inclusion does not imply endorsement by EPEVER.

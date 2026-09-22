@@ -19,11 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-The MIT license above applies to the source code in this repository. It does
-not apply to the image files under custom_components/epever_ble/brand/.
-EPEVER is a trademark of its respective owner. These images are derived from
-the EPEVER site icon and are included for identification of compatible
-hardware only; their inclusion does not imply endorsement by EPEVER.

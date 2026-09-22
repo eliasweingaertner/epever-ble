@@ -283,8 +283,8 @@ software is compatible with.
 
 The integration ships its icon and logo in `custom_components/epever_ble/brand/`, which
 Home Assistant 2026.3 and later picks up automatically. These images are excluded from the
-MIT license; see [LICENSE](LICENSE).
+MIT license; see [NOTICE](NOTICE).
 
 ## License
 
-MIT for the source code. The brand images are excluded; see [LICENSE](LICENSE).
+MIT for the source code, see [LICENSE](LICENSE). The brand images are excluded, see [NOTICE](NOTICE).
