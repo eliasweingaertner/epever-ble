@@ -19,9 +19,21 @@ class FakeBLE:
             (0x3304, 8): [5, 0, 6, 0, 7, 0, 8, 0],
         }
 
+        self.load_mode = [0]
+        self.load_coil = [True]
+        self.load_calls: list[tuple[str, int, int]] = []
+
     def read_input_registers(self, start: int, count: int, slave: int = 1) -> list[int]:
         self.calls.append((start, count, slave))
         return self.responses[(start, count)]
+
+    def read_holding_registers(self, start: int, count: int, slave: int = 1):
+        self.load_calls.append(("holding", start, count))
+        return self.load_mode
+
+    def read_coils(self, start: int, count: int = 1, slave: int = 1):
+        self.load_calls.append(("coils", start, count))
+        return self.load_coil
 
 
 def test_read_all_data_maps_xtra3210n_g3_register_values(monkeypatch) -> None:
@@ -57,7 +69,10 @@ def test_read_all_data_maps_xtra3210n_g3_register_values(monkeypatch) -> None:
         "use_month": 0.06,
         "use_year": 0.07,
         "use_total": 0.08,
+        "load_mode": "Manual",
+        "load_on": True,
     }
+    assert ble.load_calls == [("holding", 0x903D, 1), ("coils", 0x0002, 1)]
     assert ble.calls == [
         (0x3100, 8, 1),
         (0x3108, 4, 1),
@@ -113,6 +128,12 @@ def test_read_all_data_keeps_missing_batches_absent(monkeypatch) -> None:
         def read_input_registers(self, start: int, count: int, slave: int = 1):
             return None
 
+        def read_holding_registers(self, start: int, count: int, slave: int = 1):
+            return None
+
+        def read_coils(self, start: int, count: int = 1, slave: int = 1):
+            return None
+
     assert read_all_data(NoDataBLE()) == {}
 
 
@@ -130,6 +151,12 @@ def test_async_read_all_data_matches_sync_reader(monkeypatch) -> None:
             self.calls.append((start, count, slave))
             return sync_ble.responses[(start, count)]
 
+        async def read_holding_registers(self, start, count, slave=1):
+            return sync_ble.load_mode
+
+        async def read_coils(self, start, count=1, slave=1):
+            return sync_ble.load_coil
+
     async_ble = AsyncFakeBLE()
     data = asyncio.run(async_read_all_data(async_ble))
 
@@ -140,3 +167,82 @@ def test_async_read_all_data_matches_sync_reader(monkeypatch) -> None:
 
 async def _no_async_sleep(_delay: float) -> None:
     return None
+
+
+def test_read_all_data_reports_unknown_load_mode(monkeypatch) -> None:
+    monkeypatch.setattr(epever_ble._reader_mod.time, "sleep", lambda _: None)
+    ble = FakeBLE()
+    ble.load_mode = [2]
+    ble.load_coil = [False]
+
+    data = read_all_data(ble)
+
+    assert data["load_mode"] == "Light On + Timer"
+    assert data["load_on"] is False
+
+
+def test_read_all_data_omits_load_state_when_bridge_rejects_it(monkeypatch) -> None:
+    monkeypatch.setattr(epever_ble._reader_mod.time, "sleep", lambda _: None)
+    ble = FakeBLE()
+    ble.load_mode = None
+    ble.load_coil = None
+
+    data = read_all_data(ble)
+
+    assert "load_mode" not in data
+    assert "load_on" not in data
+    assert data["batt_voltage"] == 12.98
+
+
+def test_display_data_shows_load_mode_and_state(capsys) -> None:
+    epever_cli.display_data({"load_voltage": 0.0, "load_mode": "Manual", "load_on": False})
+
+    out = capsys.readouterr().out
+
+    assert "Manual" in out
+    assert "Output:" in out
+    assert "OFF" in out
+
+
+class SwitchBLE:
+    def __init__(self, mode, confirm=True) -> None:
+        self.mode = mode
+        self.confirm = confirm
+        self.coil = False
+        self.writes: list[tuple[int, bool]] = []
+
+    def read_holding_registers(self, start, count, slave=1):
+        return self.mode
+
+    def write_coil(self, address, on, slave=1):
+        self.writes.append((address, on))
+        if self.confirm:
+            self.coil = on
+        return self.confirm
+
+    def read_coils(self, start, count=1, slave=1):
+        return [self.coil]
+
+
+def test_switch_load_writes_manual_coil_and_confirms(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(epever_cli.time, "sleep", lambda _: None)
+    ble = SwitchBLE([0])
+
+    assert epever_cli.switch_load(ble, True)
+    assert ble.writes == [(0x0002, True)]
+    assert "now ON" in capsys.readouterr().out
+
+
+def test_switch_load_refuses_outside_manual_mode(capsys) -> None:
+    ble = SwitchBLE([1])
+
+    assert not epever_cli.switch_load(ble, True)
+    assert ble.writes == []
+    assert "Light On/Off" in capsys.readouterr().out
+
+
+def test_switch_load_reports_unconfirmed_command(monkeypatch) -> None:
+    monkeypatch.setattr(epever_cli.time, "sleep", lambda _: None)
+    ble = SwitchBLE([0], confirm=False)
+
+    assert not epever_cli.switch_load(ble, False)

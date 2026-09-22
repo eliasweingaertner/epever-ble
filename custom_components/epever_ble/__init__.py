@@ -1,7 +1,8 @@
 """EPEVER BLE Solar Charge Controller integration for Home Assistant.
 
 Connects to EPEVER Tracer charge controllers via their built-in BLE interface
-and exposes solar, battery, load, and energy data as sensor entities.
+exposes solar, battery, load, and energy data as sensor entities, and lets
+the load output be switched when the controller is in manual load mode.
 """
 
 import logging
@@ -15,7 +16,7 @@ from .coordinator import EPEVERBLECoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.SWITCH]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

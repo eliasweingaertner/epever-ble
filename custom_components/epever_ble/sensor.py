@@ -178,6 +178,12 @@ SENSOR_DESCRIPTIONS: tuple[EPEVERSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=2,
     ),
+    EPEVERSensorDescription(
+        key="load_mode",
+        translation_key="load_mode",
+        name="Load Mode",
+        icon="mdi:cog-outline",
+    ),
     # --- Device ---
     EPEVERSensorDescription(
         key="device_temp",

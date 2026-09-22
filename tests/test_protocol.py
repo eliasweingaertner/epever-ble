@@ -3,10 +3,19 @@ import struct
 import epever_ble
 from epever_ble import (
     build_modbus_read,
+    build_modbus_write_coil,
     modbus_crc16,
+    parse_read_coils_response,
     parse_read_registers_response,
+    parse_write_coil_response,
     verify_modbus_crc,
 )
+
+modbus_frame_length = epever_ble._ble_mod.modbus_frame_length
+
+
+def _crc(body: bytes) -> bytes:
+    return body + struct.pack("<H", modbus_crc16(body))
 
 
 def _response(slave: int, func: int, registers: list[int]) -> bytes:
@@ -101,6 +110,76 @@ def test_l2cap_transport_validates_responses() -> None:
 
     ble.send_modbus = lambda frame, timeout=3.0: good
     assert ble.read_input_registers(0x3108, 4) is None
+
+
+def test_build_modbus_write_coil_matches_known_frames() -> None:
+    assert build_modbus_write_coil(1, 0x0002, True).hex() == "01050002ff002dfa"
+    assert build_modbus_write_coil(1, 0x0002, False).hex() == "0105000200006c0a"
+
+
+def test_modbus_frame_length_by_function() -> None:
+    assert modbus_frame_length(b"\x01") is None
+    assert modbus_frame_length(b"\x01\x04") is None
+    assert modbus_frame_length(b"\x01\x04\x04") == 9
+    assert modbus_frame_length(b"\x01\x01\x01") == 6
+    assert modbus_frame_length(b"\x01\x05") == 8
+    assert modbus_frame_length(b"\x01\x84") == 5
+
+
+def test_parse_read_coils_response_decodes_bits() -> None:
+    off = _crc(bytes([1, 0x01, 1, 0x00]))
+    on = _crc(bytes([1, 0x01, 1, 0x01]))
+    mixed = _crc(bytes([1, 0x01, 2, 0b00000101, 0b00000001]))
+
+    assert parse_read_coils_response(off, 1, 0x0002, 1) == [False]
+    assert parse_read_coils_response(on, 1, 0x0002, 1) == [True]
+    assert parse_read_coils_response(mixed, 1, 0x0000, 9) == [
+        True, False, True, False, False, False, False, False, True
+    ]
+
+
+def test_parse_read_coils_response_rejects_bad_frames() -> None:
+    wrong_size = _crc(bytes([1, 0x01, 2, 0x01, 0x00]))
+    corrupt = bytearray(_crc(bytes([1, 0x01, 1, 0x01])))
+    corrupt[3] ^= 0x01
+
+    assert parse_read_coils_response(wrong_size, 1, 0x0002, 1) is None
+    assert parse_read_coils_response(bytes(corrupt), 1, 0x0002, 1) is None
+    assert parse_read_coils_response(_exception(1, 0x01, 2), 1, 0x0002, 1) is None
+
+
+def test_parse_write_coil_response_requires_exact_echo() -> None:
+    echo_on = build_modbus_write_coil(1, 0x0002, True)
+
+    assert parse_write_coil_response(echo_on, 1, 0x0002, True)
+    assert not parse_write_coil_response(echo_on, 1, 0x0002, False)
+    assert not parse_write_coil_response(echo_on, 1, 0x0003, True)
+    assert not parse_write_coil_response(_exception(1, 0x05, 4), 1, 0x0002, True)
+    assert not parse_write_coil_response(None, 1, 0x0002, True)
+
+
+def test_l2cap_transport_reads_and_writes_coils() -> None:
+    ble = object.__new__(epever_ble.L2capBLE)
+    sent: list[bytes] = []
+
+    def reply(frame, timeout=3.0):
+        sent.append(frame)
+        if frame[1] == 0x05:
+            return frame  # write single coil answers with an echo
+        if frame[1] == 0x01:
+            return _crc(bytes([1, 0x01, 1, 0x01]))
+        return _response(1, 0x03, [0])
+
+    ble.send_modbus = reply
+
+    assert ble.read_holding_registers(0x903D, 1) == [0]
+    assert ble.read_coils(0x0002) == [True]
+    assert ble.write_coil(0x0002, False)
+    assert [frame.hex() for frame in sent] == [
+        build_modbus_read(1, 0x03, 0x903D, 1).hex(),
+        build_modbus_read(1, 0x01, 0x0002, 1).hex(),
+        "0105000200006c0a",
+    ]
 
 
 class FakeSocket:

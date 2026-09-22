@@ -11,6 +11,17 @@ if TYPE_CHECKING:
     from .ha_ble import HomeAssistantBLE
 
 CHARGING_MODES = {0: "Not Charging", 1: "Float", 2: "Boost", 3: "Equalization"}
+
+# Load output control (EPEVER Modbus protocol V2.3).
+LOAD_CONTROL_COIL = 0x0002  # manual load on/off, honoured only in manual mode
+LOAD_MODE_REGISTER = 0x903D  # holding register: load controlling mode
+LOAD_MODE_MANUAL = 0
+LOAD_MODES = {
+    0: "Manual",
+    1: "Light On/Off",
+    2: "Light On + Timer",
+    3: "Time Control",
+}
 REGISTER_BATCHES = (
     (0x3100, 8, "pv_battery"),
     (0x3108, 4, "battery_output"),
@@ -100,6 +111,17 @@ def _merge_register_batch(data: dict, batch: str, registers: list[int] | None) -
         data["use_total"] = _combine_32bit(registers[6], registers[7])
 
 
+def _merge_load_state(
+    data: dict, mode_registers: list[int] | None, coils: list[bool] | None
+) -> None:
+    """Merge load mode and load on/off state; absent if the read failed."""
+    if mode_registers:
+        mode = mode_registers[0]
+        data["load_mode"] = LOAD_MODES.get(mode, f"Unknown({mode})")
+    if coils:
+        data["load_on"] = coils[0]
+
+
 def read_all_data(ble: L2capBLE) -> dict:
     """Read all registers and return a flat dict of sensor values.
 
@@ -111,6 +133,11 @@ def read_all_data(ble: L2capBLE) -> dict:
         if index:
             time.sleep(READ_DELAY)
         _merge_register_batch(data, batch, ble.read_input_registers(start, count))
+
+    time.sleep(READ_DELAY)
+    mode = ble.read_holding_registers(LOAD_MODE_REGISTER, 1)
+    time.sleep(READ_DELAY)
+    _merge_load_state(data, mode, ble.read_coils(LOAD_CONTROL_COIL, 1))
     return data
 
 
@@ -122,4 +149,9 @@ async def async_read_all_data(ble: HomeAssistantBLE) -> dict:
             await asyncio.sleep(READ_DELAY)
         registers = await ble.read_input_registers(start, count)
         _merge_register_batch(data, batch, registers)
+
+    await asyncio.sleep(READ_DELAY)
+    mode = await ble.read_holding_registers(LOAD_MODE_REGISTER, 1)
+    await asyncio.sleep(READ_DELAY)
+    _merge_load_state(data, mode, await ble.read_coils(LOAD_CONTROL_COIL, 1))
     return data

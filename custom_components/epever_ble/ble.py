@@ -33,11 +33,29 @@ def modbus_crc16(data: bytes) -> int:
     return crc
 
 
+# --- Modbus function codes ---
+
+FC_READ_COILS = 0x01
+FC_READ_HOLDING_REGISTERS = 0x03
+FC_READ_INPUT_REGISTERS = 0x04
+FC_WRITE_SINGLE_COIL = 0x05
+
+# Write functions answer with an 8-byte echo instead of a byte-count frame.
+_ECHO_FUNCTIONS = (0x05, 0x06, 0x0F, 0x10)
+
+
+def _build_frame(slave: int, func: int, word1: int, word2: int) -> bytes:
+    frame = struct.pack(">BBHH", slave, func, word1, word2)
+    return frame + struct.pack("<H", modbus_crc16(frame))
+
+
 def build_modbus_read(slave: int, func: int, start_reg: int, count: int) -> bytes:
-    frame = struct.pack(">BBHH", slave, func, start_reg, count)
-    crc = modbus_crc16(frame)
-    frame += struct.pack("<H", crc)
-    return frame
+    return _build_frame(slave, func, start_reg, count)
+
+
+def build_modbus_write_coil(slave: int, address: int, on: bool) -> bytes:
+    """Build a Write Single Coil request (function 0x05)."""
+    return _build_frame(slave, FC_WRITE_SINGLE_COIL, address, 0xFF00 if on else 0)
 
 
 def verify_modbus_crc(data: bytes) -> bool:
@@ -46,34 +64,58 @@ def verify_modbus_crc(data: bytes) -> bool:
     return modbus_crc16(data[:-2]) == struct.unpack("<H", data[-2:])[0]
 
 
+def modbus_frame_length(data: bytes) -> Optional[int]:
+    """Return the length of the Modbus RTU response at the start of ``data``.
+
+    Returns None while too few bytes have arrived to tell.
+    """
+    if len(data) < 2:
+        return None
+    if data[1] & 0x80:
+        return 5
+    if data[1] in _ECHO_FUNCTIONS:
+        return 8
+    if len(data) < 3:
+        return None
+    return data[2] + 5
+
+
+def _leading_frame(
+    response: Optional[bytes], slave: int, func: int, address: int
+) -> Optional[bytes]:
+    """Return the first frame of ``response`` if it validly answers ``func``.
+
+    Shared by the standalone L2CAP transport and the Home Assistant transport,
+    so both accept exactly the same frames: complete, valid CRC, matching slave
+    ID and function code. Bytes after the first frame are ignored. Modbus
+    exceptions are logged and rejected.
+    """
+    if not response:
+        return None
+    length = modbus_frame_length(response)
+    if length is None or len(response) < length:
+        _LOGGER.debug("Discarding truncated response for address 0x%04x", address)
+        return None
+
+    frame = response[:length]
+    if not verify_modbus_crc(frame):
+        _LOGGER.debug("Discarding corrupt response for address 0x%04x", address)
+        return None
+    if frame[0] == slave and frame[1] == func | 0x80:
+        _LOGGER.warning("Modbus exception %d for address 0x%04x", frame[2], address)
+        return None
+    if frame[0] != slave or frame[1] != func:
+        _LOGGER.debug("Discarding foreign response for address 0x%04x", address)
+        return None
+    return frame
+
+
 def parse_read_registers_response(
     response: Optional[bytes], slave: int, func: int, start: int, count: int
 ) -> Optional[list[int]]:
-    """Validate a Modbus register read response and return its values.
-
-    Shared by the standalone L2CAP transport and the Home Assistant transport,
-    so both accept exactly the same frames. The response must answer the
-    request that was sent: matching slave ID and function code, a valid CRC and
-    exactly ``count`` registers. Bytes after the first complete frame are
-    ignored. Returns None for anything else, including Modbus exceptions.
-    """
-    if not response or len(response) < 5:
-        return None
-
-    if response[1] == func | 0x80:
-        frame = response[:5]
-        if verify_modbus_crc(frame) and frame[0] == slave:
-            _LOGGER.warning(
-                "Modbus exception %d for register 0x%04x", frame[2], start
-            )
-        return None
-
-    frame = response[: response[2] + 5]
-    if len(frame) < response[2] + 5 or not verify_modbus_crc(frame):
-        _LOGGER.debug("Discarding corrupt response for register 0x%04x", start)
-        return None
-    if frame[0] != slave or frame[1] != func:
-        _LOGGER.debug("Discarding foreign response for register 0x%04x", start)
+    """Validate a register read response and return exactly ``count`` values."""
+    frame = _leading_frame(response, slave, func, start)
+    if frame is None:
         return None
 
     byte_count = frame[2]
@@ -91,6 +133,33 @@ def parse_read_registers_response(
         struct.unpack(">H", payload[offset : offset + 2])[0]
         for offset in range(0, byte_count, 2)
     ]
+
+
+def parse_read_coils_response(
+    response: Optional[bytes], slave: int, start: int, count: int
+) -> Optional[list[bool]]:
+    """Validate a Read Coils response and return exactly ``count`` states."""
+    frame = _leading_frame(response, slave, FC_READ_COILS, start)
+    if frame is None:
+        return None
+
+    byte_count = frame[2]
+    if byte_count != (count + 7) // 8:
+        _LOGGER.debug(
+            "Discarding coil response with %d bytes for coil 0x%04x", byte_count, start
+        )
+        return None
+
+    payload = frame[3 : 3 + byte_count]
+    return [bool((payload[bit // 8] >> (bit % 8)) & 1) for bit in range(count)]
+
+
+def parse_write_coil_response(
+    response: Optional[bytes], slave: int, address: int, on: bool
+) -> bool:
+    """Return whether ``response`` is the controller's echo of the coil write."""
+    frame = _leading_frame(response, slave, FC_WRITE_SINGLE_COIL, address)
+    return frame is not None and frame == build_modbus_write_coil(slave, address, on)
 
 
 # --- ATT protocol opcodes ---
@@ -299,9 +368,28 @@ class L2capBLE:
     def read_input_registers(
         self, start: int, count: int, slave: int = 1
     ) -> Optional[list[int]]:
-        frame = build_modbus_read(slave, 0x04, start, count)
-        response = self.send_modbus(frame)
-        return parse_read_registers_response(response, slave, 0x04, start, count)
+        return self._read_registers(FC_READ_INPUT_REGISTERS, start, count, slave)
+
+    def read_holding_registers(
+        self, start: int, count: int, slave: int = 1
+    ) -> Optional[list[int]]:
+        return self._read_registers(FC_READ_HOLDING_REGISTERS, start, count, slave)
+
+    def _read_registers(
+        self, func: int, start: int, count: int, slave: int
+    ) -> Optional[list[int]]:
+        response = self.send_modbus(build_modbus_read(slave, func, start, count))
+        return parse_read_registers_response(response, slave, func, start, count)
+
+    def read_coils(
+        self, start: int, count: int = 1, slave: int = 1
+    ) -> Optional[list[bool]]:
+        response = self.send_modbus(build_modbus_read(slave, FC_READ_COILS, start, count))
+        return parse_read_coils_response(response, slave, start, count)
+
+    def write_coil(self, address: int, on: bool, slave: int = 1) -> bool:
+        response = self.send_modbus(build_modbus_write_coil(slave, address, on))
+        return parse_write_coil_response(response, slave, address, on)
 
     def disconnect(self):
         if self._sock:

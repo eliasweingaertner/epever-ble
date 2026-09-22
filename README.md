@@ -18,7 +18,7 @@ Other EPEVER controllers are not implied compatible. Models using an external eB
 
 - **Solar panel**: voltage, current, power
 - **Battery**: voltage, charge/output/net current, charge/output power, state of charge, remote temperature, charging mode
-- **Load**: voltage, current, power
+- **Load**: voltage, current, power, load mode, on/off state — and switching the load output
 - **Device**: equipment and MOSFET temperature
 - **Energy statistics**: daily/monthly/yearly/total generation and consumption
 
@@ -104,6 +104,9 @@ python -m epever_ble --addr XX:XX:XX:XX:XX:XX --loop --interval 10
 # Send a raw Modbus RTU frame (hex) and print response
 python -m epever_ble --addr XX:XX:XX:XX:XX:XX --raw 0104310000013f36
 
+# Switch the load output (requires manual load mode)
+python -m epever_ble --addr XX:XX:XX:XX:XX:XX --load off
+
 # Enable debug logging
 python -m epever_ble --addr XX:XX:XX:XX:XX:XX -v
 ```
@@ -143,7 +146,7 @@ If the integration cannot find the controller, verify that Home Assistant has a 
 
 ### Entities
 
-The integration creates a device with the following sensor entities:
+The integration creates a device with the following sensor entities and one switch:
 
 | Entity | Unit | Description |
 |--------|------|-------------|
@@ -163,6 +166,8 @@ The integration creates a device with the following sensor entities:
 | Load Voltage | V | Load output voltage |
 | Load Current | A | Load output current |
 | Load Power | W | Load output power |
+| Load Mode | | Manual / Light On/Off / Light On + Timer / Time Control |
+| **Load Output** (switch) | | Switches the load output on and off |
 | Device Temperature | °C | Controller internal temperature |
 | MOSFET Temperature | °C | Controller MOSFET temperature |
 | Energy Generated Today | kWh | Daily solar generation |
@@ -175,6 +180,10 @@ The integration creates a device with the following sensor entities:
 | Total Energy Consumed | kWh | Lifetime load consumption |
 
 Energy sensors use `total_increasing` state class, making them compatible with Home Assistant's energy dashboard.
+
+**Switching the load output.** The switch writes coil `0x0002` (manual load control). The controller honours it only when its load mode is **Manual**; in the other modes it decides by itself, so the switch refuses with an error that names the active mode. The mode can be changed in the EPEVER app or on the controller.
+
+In manual mode the controller also keeps a *default* state that it restores after every restart. With the factory default **ON**, the load comes back on after any power loss, for example after the battery's BMS disconnected the battery. Set the default to **OFF** if the load must stay off until switched on deliberately.
 
 ## How it works
 
@@ -218,6 +227,15 @@ The Modbus register map is the standard EPEVER Tracer map:
 | `0x3201` | Charging Status | | bitfield |
 | `0x330C-13` | Generated Energy (day/month/year/total) | kWh | /100 (32-bit) |
 | `0x3304-0B` | Consumed Energy (day/month/year/total) | kWh | /100 (32-bit) |
+
+Load control uses two further Modbus functions:
+
+| Address | Function | Name | Values |
+|----------|----------|------|--------|
+| `0x903D` | 0x03 read holding register | Load Mode | 0 Manual, 1 Light On/Off, 2 Light On + Timer, 3 Time Control |
+| `0x0002` | 0x01 read / 0x05 write coil | Manual Load Control | on / off; honoured only in Manual mode |
+
+If a controller's BLE bridge does not forward these functions, the load mode and switch simply stay unavailable; all other data is unaffected.
 
 ## Known limitations
 

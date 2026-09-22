@@ -5,6 +5,7 @@ Usage:
     python -m epever_ble --addr XX:XX:XX:XX:XX:XX
     python -m epever_ble --addr XX:XX:XX:XX:XX:XX --loop
     python -m epever_ble --addr XX:XX:XX:XX:XX:XX --raw HEX
+    python -m epever_ble --addr XX:XX:XX:XX:XX:XX --load on|off
 """
 
 import argparse
@@ -12,7 +13,15 @@ import logging
 import sys
 import time
 
-from . import L2capBLE, read_all_data, verify_modbus_crc
+from . import (
+    LOAD_CONTROL_COIL,
+    LOAD_MODE_MANUAL,
+    LOAD_MODE_REGISTER,
+    LOAD_MODES,
+    L2capBLE,
+    read_all_data,
+    verify_modbus_crc,
+)
 
 
 def display_data(data: dict):
@@ -30,6 +39,8 @@ def display_data(data: dict):
             "batt_output_current",
             "batt_net_current",
             "load_voltage",
+            "load_mode",
+            "load_on",
             "device_temp",
             "mosfet_temp",
         )
@@ -74,6 +85,10 @@ def display_data(data: dict):
             print(f"  Current:  {data['load_current']:>8.2f} A")
         if "load_power" in data:
             print(f"  Power:    {data['load_power']:>8.2f} W")
+        if "load_mode" in data:
+            print(f"  Mode:     {data['load_mode']:>12s}")
+        if "load_on" in data:
+            print(f"  Output:   {'ON' if data['load_on'] else 'OFF':>12s}")
 
         if "device_temp" in data:
             print(f"\n  Device Temp: {data['device_temp']:>5.2f} C")
@@ -105,6 +120,32 @@ def display_data(data: dict):
         print("\n  No data received.")
 
     print("\n" + "=" * 55)
+
+
+def switch_load(ble, on: bool, slave: int = 1) -> bool:
+    """Switch the load output; return True once the new state is confirmed."""
+    mode = ble.read_holding_registers(LOAD_MODE_REGISTER, 1, slave)
+    if mode is None:
+        print("Warning: could not read the load mode; trying anyway.")
+    elif mode[0] != LOAD_MODE_MANUAL:
+        name = LOAD_MODES.get(mode[0], f"Unknown({mode[0]})")
+        print(
+            f"Load output is in '{name}' mode; switching requires "
+            f"'{LOAD_MODES[LOAD_MODE_MANUAL]}' mode. Nothing changed."
+        )
+        return False
+
+    if not ble.write_coil(LOAD_CONTROL_COIL, on, slave):
+        print("The controller did not confirm the command.")
+        return False
+
+    time.sleep(0.3)
+    state = ble.read_coils(LOAD_CONTROL_COIL, 1, slave)
+    if state is None:
+        print("Command confirmed, but the new state could not be read back.")
+        return False
+    print(f"Load output is now {'ON' if state[0] else 'OFF'}.")
+    return state[0] == on
 
 
 def scan_devices(timeout: int = 10):
@@ -187,6 +228,11 @@ def main():
         "--raw", type=str, help="Send raw Modbus hex frame and print response"
     )
     parser.add_argument(
+        "--load",
+        choices=["on", "off"],
+        help="Switch the load output (controller must be in manual load mode)",
+    )
+    parser.add_argument(
         "--slave", type=int, default=1, help="Modbus slave ID (default: 1)"
     )
     parser.add_argument(
@@ -217,6 +263,9 @@ def main():
         print("Connected.")
 
         ble.enable_notifications()
+
+        if args.load:
+            sys.exit(0 if switch_load(ble, args.load == "on", args.slave) else 1)
 
         if args.raw:
             frame = bytes.fromhex(args.raw)

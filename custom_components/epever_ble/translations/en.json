@@ -56,11 +56,19 @@
       "batt_temp": {
         "name": "Remote Battery Temperature"
       },
+      "load_mode": {
+        "name": "Load Mode"
+      },
       "mosfet_temp": {
         "name": "MOSFET Temperature"
       },
       "pv_output_voltage": {
         "name": "PV Output Voltage"
+      }
+    },
+    "switch": {
+      "load_output": {
+        "name": "Load Output"
       }
     }
   }
