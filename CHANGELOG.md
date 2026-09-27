@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 (2026-09-27)
 
 - Read the controller's battery settings (type, capacity, temperature compensation, voltage thresholds, boost/equalize duration) and its clock. Home Assistant shows them as diagnostic sensors, refreshed hourly; the CLI prints them with `--settings`.
 
