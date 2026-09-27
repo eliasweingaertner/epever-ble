@@ -19,6 +19,7 @@ Other EPEVER controllers are not implied compatible. Models using an external eB
 - **Solar panel**: voltage, current, power
 - **Battery**: voltage, charge/output/net current, charge/output power, state of charge, remote temperature, charging mode
 - **Load**: voltage, current, power, load mode, on/off state — and switching the load output
+- **Settings** (read-only): battery type, capacity, temperature compensation, the twelve charge/discharge voltage thresholds, boost/equalize duration, controller clock
 - **Device**: equipment and MOSFET temperature
 - **Energy statistics**: daily/monthly/yearly/total generation and consumption
 
@@ -107,6 +108,9 @@ python -m epever_ble --addr XX:XX:XX:XX:XX:XX --raw 0104310000013f36
 # Switch the load output (requires manual load mode)
 python -m epever_ble --addr XX:XX:XX:XX:XX:XX --load off
 
+# Show the controller's battery settings and clock
+python -m epever_ble --addr XX:XX:XX:XX:XX:XX --settings
+
 # Enable debug logging
 python -m epever_ble --addr XX:XX:XX:XX:XX:XX -v
 ```
@@ -185,6 +189,10 @@ Energy sensors use `total_increasing` state class, making them compatible with H
 
 In manual mode the controller also keeps a *default* state that it restores after every restart. With the factory default **ON**, the load comes back on after any power loss, for example after the battery's BMS disconnected the battery. Set the default to **OFF** if the load must stay off until switched on deliberately.
 
+**Controller settings.** Diagnostic sensors show what the controller is configured to do: battery type, capacity, temperature compensation coefficient, all twelve voltage thresholds (over-voltage disconnect down to discharging limit), equalize and boost duration, and the controller clock. They are read once an hour, not on every poll; a failed read is retried after five minutes and does not affect the measurements. The settings are read-only — change them in the EPEVER app.
+
+Worth checking after installation: with a lithium battery, the temperature compensation must be **0**. The factory value of −3 mV/°C/2V is meant for lead-acid and raises the charge voltage on cold days.
+
 ## How it works
 
 The compatible controllers' built-in BLE module exposes a GATT service that acts as a Modbus RTU bridge. Standard Modbus frames (with CRC16) are written to one characteristic and responses arrive as notifications on another.
@@ -235,7 +243,18 @@ Load control uses two further Modbus functions:
 | `0x903D` | 0x03 read holding register | Load Mode | 0 Manual, 1 Light On/Off, 2 Light On + Timer, 3 Time Control |
 | `0x0002` | 0x01 read / 0x05 write coil | Manual Load Control | on / off; honoured only in Manual mode |
 
-If a controller's BLE bridge does not forward these functions, the load mode and switch simply stay unavailable; all other data is unaffected.
+Settings are read as holding registers (FC03):
+
+| Address | Name | Unit | Scale |
+|----------|------|------|-------|
+| `0x9000` | Battery Type | | 0 User, 1 Sealed, 2 GEL, 3 Flooded |
+| `0x9001` | Battery Capacity | Ah | 1 |
+| `0x9002` | Temperature Compensation | mV/°C/2V | /100 |
+| `0x9003-0E` | Voltage thresholds (over-voltage disconnect … discharging limit) | V | /100 |
+| `0x906B-6C` | Equalize / Boost Duration | min | 1 |
+| `0x9013-15` | Real-time clock (sec/min, hour/day, month/year) | | one byte each |
+
+If a controller's BLE bridge does not forward these functions, the load mode, switch and settings simply stay unavailable; all other data is unaffected.
 
 ## Known limitations
 

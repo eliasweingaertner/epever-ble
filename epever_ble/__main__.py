@@ -6,6 +6,7 @@ Usage:
     python -m epever_ble --addr XX:XX:XX:XX:XX:XX --loop
     python -m epever_ble --addr XX:XX:XX:XX:XX:XX --raw HEX
     python -m epever_ble --addr XX:XX:XX:XX:XX:XX --load on|off
+    python -m epever_ble --addr XX:XX:XX:XX:XX:XX --settings
 """
 
 import argparse
@@ -20,6 +21,7 @@ from . import (
     LOAD_MODES,
     L2capBLE,
     read_all_data,
+    read_settings,
     verify_modbus_crc,
 )
 
@@ -120,6 +122,40 @@ def display_data(data: dict):
         print("\n  No data received.")
 
     print("\n" + "=" * 55)
+
+
+SETTING_LABELS = (
+    ("set_battery_type", "Battery type", ""),
+    ("set_battery_capacity", "Capacity", "Ah"),
+    ("set_temperature_compensation", "Temp. compensation", "mV/C/2V"),
+    ("set_overvoltage_disconnect", "Overvoltage disconnect", "V"),
+    ("set_charging_limit", "Charging limit", "V"),
+    ("set_overvoltage_reconnect", "Overvoltage reconnect", "V"),
+    ("set_equalize", "Equalize", "V"),
+    ("set_boost", "Boost", "V"),
+    ("set_float", "Float", "V"),
+    ("set_boost_reconnect", "Boost reconnect", "V"),
+    ("set_low_voltage_reconnect", "Low voltage reconnect", "V"),
+    ("set_undervoltage_warning_reconnect", "Undervoltage warn. reconnect", "V"),
+    ("set_undervoltage_warning", "Undervoltage warning", "V"),
+    ("set_low_voltage_disconnect", "Low voltage disconnect", "V"),
+    ("set_discharging_limit", "Discharging limit", "V"),
+    ("set_equalize_duration", "Equalize duration", "min"),
+    ("set_boost_duration", "Boost duration", "min"),
+    ("controller_clock", "Controller clock", ""),
+)
+
+
+def display_settings(data: dict):
+    print("\n" + "=" * 55)
+    print("  EPEVER Controller Settings")
+    print("=" * 55)
+    if not data:
+        print("\n  No settings received.")
+    for key, label, unit in SETTING_LABELS:
+        if key in data:
+            print(f"  {label + ':':<30s} {data[key]} {unit}".rstrip())
+    print("=" * 55)
 
 
 def switch_load(ble, on: bool, slave: int = 1) -> bool:
@@ -228,6 +264,11 @@ def main():
         "--raw", type=str, help="Send raw Modbus hex frame and print response"
     )
     parser.add_argument(
+        "--settings",
+        action="store_true",
+        help="Read and print the controller's battery settings and clock",
+    )
+    parser.add_argument(
         "--load",
         choices=["on", "off"],
         help="Switch the load output (controller must be in manual load mode)",
@@ -263,6 +304,10 @@ def main():
         print("Connected.")
 
         ble.enable_notifications()
+
+        if args.settings:
+            display_settings(read_settings(ble))
+            return
 
         if args.load:
             sys.exit(0 if switch_load(ble, args.load == "on", args.slave) else 1)

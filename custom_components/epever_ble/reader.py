@@ -34,6 +34,29 @@ REGISTER_BATCHES = (
 )
 READ_DELAY = 0.3
 
+# Controller settings (holding registers, EPEVER Modbus protocol V2.3).
+# They change rarely, so they are read separately from the measurements.
+SETTINGS_BATCHES = (
+    (0x9000, 15, "battery_settings"),
+    (0x906B, 2, "charge_durations"),
+    (0x9013, 3, "clock"),
+)
+BATTERY_TYPES = {0: "User", 1: "Sealed", 2: "GEL", 3: "Flooded"}
+_SETTING_VOLTAGES = (  # (offset in the 0x9000 block, key)
+    (3, "set_overvoltage_disconnect"),
+    (4, "set_charging_limit"),
+    (5, "set_overvoltage_reconnect"),
+    (6, "set_equalize"),
+    (7, "set_boost"),
+    (8, "set_float"),
+    (9, "set_boost_reconnect"),
+    (10, "set_low_voltage_reconnect"),
+    (11, "set_undervoltage_warning_reconnect"),
+    (12, "set_undervoltage_warning"),
+    (13, "set_low_voltage_disconnect"),
+    (14, "set_discharging_limit"),
+)
+
 
 def _combine_32bit(low: int, high: int) -> float:
     return (high * 65536 + low) / 100.0
@@ -120,6 +143,55 @@ def _merge_load_state(
         data["load_mode"] = LOAD_MODES.get(mode, f"Unknown({mode})")
     if coils:
         data["load_on"] = coils[0]
+
+
+def _merge_settings_batch(data: dict, batch: str, registers: list[int] | None) -> None:
+    """Merge one block of controller settings; absent if the read failed."""
+    if not registers:
+        return
+
+    if batch == "battery_settings" and len(registers) >= 15:
+        battery_type = registers[0]
+        data["set_battery_type"] = BATTERY_TYPES.get(
+            battery_type, f"Type {battery_type}"
+        )
+        data["set_battery_capacity"] = registers[1]
+        data["set_temperature_compensation"] = registers[2] / 100.0
+        for offset, key in _SETTING_VOLTAGES:
+            data[key] = registers[offset] / 100.0
+    elif batch == "charge_durations" and len(registers) >= 2:
+        data["set_equalize_duration"] = registers[0]
+        data["set_boost_duration"] = registers[1]
+    elif batch == "clock" and len(registers) >= 3:
+        second, minute = registers[0] & 0xFF, registers[0] >> 8
+        hour, day = registers[1] & 0xFF, registers[1] >> 8
+        month, year = registers[2] & 0xFF, registers[2] >> 8
+        data["controller_clock"] = (
+            f"{2000 + year:04d}-{month:02d}-{day:02d} "
+            f"{hour:02d}:{minute:02d}:{second:02d}"
+        )
+
+
+def read_settings(ble: L2capBLE) -> dict:
+    """Read the controller's battery settings, charge durations and clock."""
+    data: dict = {}
+    for index, (start, count, batch) in enumerate(SETTINGS_BATCHES):
+        if index:
+            time.sleep(READ_DELAY)
+        _merge_settings_batch(data, batch, ble.read_holding_registers(start, count))
+    return data
+
+
+async def async_read_settings(ble: HomeAssistantBLE) -> dict:
+    """Read the controller settings through an asynchronous transport."""
+    data: dict = {}
+    for index, (start, count, batch) in enumerate(SETTINGS_BATCHES):
+        if index:
+            await asyncio.sleep(READ_DELAY)
+        _merge_settings_batch(
+            data, batch, await ble.read_holding_registers(start, count)
+        )
+    return data
 
 
 def read_all_data(ble: L2capBLE) -> dict:

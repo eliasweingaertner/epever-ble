@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Read the controller's battery settings (type, capacity, temperature compensation, voltage thresholds, boost/equalize duration) and its clock. Home Assistant shows them as diagnostic sensors, refreshed hourly; the CLI prints them with `--settings`.
+
 ## 1.2.0 (2026-09-22)
 
 - Add a Home Assistant switch for the controller's load output and a load mode sensor, and `--load on|off` to the CLI. Switching requires the controller's Manual load mode.

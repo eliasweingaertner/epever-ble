@@ -246,3 +246,86 @@ def test_switch_load_reports_unconfirmed_command(monkeypatch) -> None:
     ble = SwitchBLE([0], confirm=False)
 
     assert not epever_cli.switch_load(ble, False)
+
+
+# Values from the Solar Guardian app on 27.09.2026 (Tracer 7810CPN, "User").
+SETTINGS_REGS = [0, 100, 0, 2920, 2880, 2840, 2840, 2840, 2720, 2640,
+                 2560, 2440, 2320, 2400, 2160]
+
+
+class SettingsBLE:
+    def __init__(self, fail=()):
+        self.fail = fail
+        self.calls = []
+
+    def read_holding_registers(self, start, count, slave=1):
+        self.calls.append((start, count))
+        if start in self.fail:
+            return None
+        return {
+            0x9000: SETTINGS_REGS,
+            0x906B: [0, 120],
+            # 2026-09-27 12:34:56 -> (min<<8|sec, day<<8|hour, year<<8|month)
+            0x9013: [(34 << 8) | 56, (27 << 8) | 12, (26 << 8) | 9],
+        }[start]
+
+
+def test_read_settings_maps_battery_parameters(monkeypatch) -> None:
+    monkeypatch.setattr(epever_ble._reader_mod.time, "sleep", lambda _: None)
+    ble = SettingsBLE()
+
+    data = epever_ble.read_settings(ble)
+
+    assert ble.calls == [(0x9000, 15), (0x906B, 2), (0x9013, 3)]
+    assert data["set_battery_type"] == "User"
+    assert data["set_battery_capacity"] == 100
+    assert data["set_temperature_compensation"] == 0.0
+    assert data["set_overvoltage_disconnect"] == 29.2
+    assert data["set_charging_limit"] == 28.8
+    assert data["set_boost"] == 28.4
+    assert data["set_float"] == 27.2
+    assert data["set_low_voltage_disconnect"] == 24.0
+    assert data["set_discharging_limit"] == 21.6
+    assert data["set_boost_duration"] == 120
+    assert data["controller_clock"] == "2026-09-27 12:34:56"
+
+
+def test_read_settings_skips_failed_blocks(monkeypatch) -> None:
+    monkeypatch.setattr(epever_ble._reader_mod.time, "sleep", lambda _: None)
+
+    data = epever_ble.read_settings(SettingsBLE(fail=(0x9013,)))
+
+    assert "controller_clock" not in data
+    assert data["set_boost"] == 28.4
+
+
+def test_unknown_battery_type_is_reported_by_number(monkeypatch) -> None:
+    monkeypatch.setattr(epever_ble._reader_mod.time, "sleep", lambda _: None)
+    ble = SettingsBLE()
+    SETTINGS_REGS_TYPE5 = [5] + SETTINGS_REGS[1:]
+    ble.read_holding_registers = lambda start, count, slave=1: (
+        SETTINGS_REGS_TYPE5 if start == 0x9000 else None
+    )
+
+    assert epever_ble.read_settings(ble)["set_battery_type"] == "Type 5"
+
+
+def test_async_read_settings_matches_sync(monkeypatch) -> None:
+    monkeypatch.setattr(epever_ble._reader_mod.time, "sleep", lambda _: None)
+    monkeypatch.setattr(epever_ble._reader_mod.asyncio, "sleep", _no_async_sleep)
+    sync_ble = SettingsBLE()
+
+    class AsyncSettingsBLE:
+        async def read_holding_registers(self, start, count, slave=1):
+            return sync_ble.read_holding_registers(start, count, slave)
+
+    data = asyncio.run(epever_ble.async_read_settings(AsyncSettingsBLE()))
+    assert data == epever_ble.read_settings(SettingsBLE())
+
+
+def test_display_settings_prints_values(capsys) -> None:
+    epever_cli.display_settings({"set_boost": 28.4, "set_battery_type": "User"})
+
+    out = capsys.readouterr().out
+    assert "Boost:" in out and "28.4 V" in out
+    assert "Battery type:" in out and "User" in out

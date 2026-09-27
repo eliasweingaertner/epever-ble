@@ -1,6 +1,7 @@
 """DataUpdateCoordinator for EPEVER BLE."""
 
 import logging
+import time
 from datetime import timedelta
 
 from homeassistant.core import HomeAssistant
@@ -13,9 +14,14 @@ from .reader import (
     LOAD_MODE_MANUAL,
     LOAD_MODES,
     async_read_all_data,
+    async_read_settings,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Settings change rarely; a failed read is retried sooner than a good one.
+SETTINGS_INTERVAL = 3600.0
+SETTINGS_RETRY = 300.0
 
 
 class EPEVERBLECoordinator(DataUpdateCoordinator):
@@ -35,6 +41,8 @@ class EPEVERBLECoordinator(DataUpdateCoordinator):
         )
         self._address = address
         self._ble = HomeAssistantBLE(hass, address)
+        self._settings: dict = {}
+        self._settings_next = 0.0
 
     async def _async_update_data(self) -> dict:
         """Read controller data through Home Assistant's Bluetooth manager."""
@@ -50,7 +58,24 @@ class EPEVERBLECoordinator(DataUpdateCoordinator):
             await self._ble.disconnect()
             raise UpdateFailed("No data received from controller")
 
-        return data
+        await self._async_refresh_settings()
+        return {**data, **self._settings}
+
+    async def _async_refresh_settings(self) -> None:
+        """Re-read the controller settings when they are due."""
+        now = time.monotonic()
+        if now < self._settings_next:
+            return
+        try:
+            settings = await async_read_settings(self._ble)
+        except Exception as err:  # a settings failure must not fail the poll
+            _LOGGER.debug("Reading controller settings failed: %s", err)
+            settings = {}
+        if settings:
+            self._settings = settings
+            self._settings_next = now + SETTINGS_INTERVAL
+        else:
+            self._settings_next = now + SETTINGS_RETRY
 
     async def async_set_load(self, on: bool) -> None:
         """Switch the load output through the manual load control coil."""

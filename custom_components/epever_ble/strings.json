@@ -56,6 +56,9 @@
       "batt_temp": {
         "name": "Remote Battery Temperature"
       },
+      "controller_clock": {
+        "name": "Controller Clock"
+      },
       "load_mode": {
         "name": "Load Mode"
       },
@@ -64,6 +67,57 @@
       },
       "pv_output_voltage": {
         "name": "PV Output Voltage"
+      },
+      "set_battery_capacity": {
+        "name": "Battery Capacity Setting"
+      },
+      "set_battery_type": {
+        "name": "Battery Type Setting"
+      },
+      "set_boost": {
+        "name": "Boost Charging Voltage"
+      },
+      "set_boost_duration": {
+        "name": "Boost Duration"
+      },
+      "set_boost_reconnect": {
+        "name": "Boost Reconnect Voltage"
+      },
+      "set_charging_limit": {
+        "name": "Charging Limit Voltage"
+      },
+      "set_discharging_limit": {
+        "name": "Discharging Limit Voltage"
+      },
+      "set_equalize": {
+        "name": "Equalize Charging Voltage"
+      },
+      "set_equalize_duration": {
+        "name": "Equalize Duration"
+      },
+      "set_float": {
+        "name": "Float Charging Voltage"
+      },
+      "set_low_voltage_disconnect": {
+        "name": "Low Voltage Disconnect Voltage"
+      },
+      "set_low_voltage_reconnect": {
+        "name": "Low Voltage Reconnect Voltage"
+      },
+      "set_overvoltage_disconnect": {
+        "name": "Overvoltage Disconnect Voltage"
+      },
+      "set_overvoltage_reconnect": {
+        "name": "Overvoltage Reconnect Voltage"
+      },
+      "set_temperature_compensation": {
+        "name": "Temperature Compensation Setting"
+      },
+      "set_undervoltage_warning": {
+        "name": "Undervoltage Warning Voltage"
+      },
+      "set_undervoltage_warning_reconnect": {
+        "name": "Undervoltage Warning Reconnect Voltage"
       }
     },
     "switch": {
